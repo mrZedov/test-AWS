@@ -26,7 +26,10 @@
     "@nestjs/platform-express": "^9.0.0",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
-    "rxjs": "^7.2.0"
+    "rxjs": "^7.2.0",
+    "aws-sdk": ">= 2.1184.0",
+    "dotenv": "^16.0.1",
+    "sharp": "^0.30.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^9.0.0",
