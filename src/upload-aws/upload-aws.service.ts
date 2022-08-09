@@ -4,18 +4,29 @@ import * as sharp from 'sharp';
 
 @Injectable()
 export class UploadAWSService {
-  async upload(req) {
-    
-    // читаем конфиг
-    const SESConfig = {
+  SESConfig;
+  convertibleImageSizes: number[];
+  bucketsFolder: string;
+  allowedMaxSize: number;
+  allowedFileTypes: string[];
+  s3: AWS.S3;
+
+  onModuleInit() {
+    // читаем конфиги
+    this.SESConfig = {
       accessKeyId: process.env.AWS_ACCESS_ID,
       secretAccessKey: process.env.AWS_SECRET_KEY,
     };
-    const convertibleImageSizes = JSON.parse(
+    this.convertibleImageSizes = JSON.parse(
       process.env.CONVERTIBLE_IMAGE_SIZES,
     );
-    const bucketsFolder = process.env.BUCKETS_FOLDER;
+    this.bucketsFolder = process.env.BUCKETS_FOLDER;
+    this.allowedMaxSize = Number(process.env.ALLOWED_MAX_SIZE);
+    this.allowedFileTypes = JSON.parse(process.env.ALLOWED_FILE_TYPES);
+    this.s3 = new AWS.S3(this.SESConfig);
+  }
 
+  async upload(req) {
     // определяем тип и размер файла по заголовкам
     // как вариант, размер можно самостоятельно подсчитывать при подписке:
     //  req.on('data', (chunk) => {
@@ -31,19 +42,17 @@ export class UploadAWSService {
     // проверяем файл на допустимый тип и размер. Если не удовлетворяет условиям, то выдаем исключение
     this.validateFile(imageType, contentLength);
 
-    var s3: AWS.S3 = new AWS.S3(SESConfig);
-
     // создаем корзину на S3 если не была создана ранее
-    await this.createBucketsFolder(s3, bucketsFolder);
+    await this.createBucketsFolder();
 
     const promises = [];
     const filesUploaded = [];
-    for (const size of convertibleImageSizes) {
+    for (const size of this.convertibleImageSizes) {
       const fullfilename = fileName + '-' + size + '.' + imageType;
       filesUploaded.push(fullfilename); // запоминаем имя каждого выгружаемого файла
-      const promise = s3
+      const promise = this.s3
         .upload({
-          Bucket: bucketsFolder,
+          Bucket: this.bucketsFolder,
           Key: fullfilename,
           Body: req.pipe(sharp().resize(size, size)), // конвертируем в размер и отдаем поток на S3
         })
@@ -69,24 +78,22 @@ export class UploadAWSService {
   }
 
   validateFile(imageType: string, contentLength: number) {
-    const allowedMaxSize = Number(process.env.ALLOWED_MAX_SIZE);
-    const allowedFileTypes = JSON.parse(process.env.ALLOWED_FILE_TYPES);
-    if (!allowedFileTypes.includes(imageType)) {
+    if (!this.allowedFileTypes.includes(imageType)) {
       throw new HttpException('Not allowed file type', 400);
     }
-    if (contentLength > allowedMaxSize) {
+    if (contentLength > this.allowedMaxSize) {
       throw new HttpException('Not allowed size of file', 400);
     }
   }
 
-  async createBucketsFolder(s3: AWS.S3, bucketsFolder: string) {
-    const resListBuckets = await s3.listBuckets().promise();
+  async createBucketsFolder() {
+    const resListBuckets = await this.s3.listBuckets().promise();
     const basketUploadImagesFinverity = resListBuckets.Buckets.find(
-      (el) => el.Name === bucketsFolder,
+      (el) => el.Name === this.bucketsFolder,
     );
 
     if (!basketUploadImagesFinverity) {
-      await s3.createBucket({ Bucket: bucketsFolder }).promise();
+      await this.s3.createBucket({ Bucket: this.bucketsFolder }).promise();
     }
   }
 }
