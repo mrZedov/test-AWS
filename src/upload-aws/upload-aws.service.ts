@@ -5,7 +5,7 @@ import * as sharp from 'sharp';
 @Injectable()
 export class UploadAWSService {
   async upload(req) {
-
+    
     // читаем конфиг
     const SESConfig = {
       accessKeyId: process.env.AWS_ACCESS_ID,
@@ -16,7 +16,11 @@ export class UploadAWSService {
     );
     const bucketsFolder = process.env.BUCKETS_FOLDER;
 
-    // определяем тип и размер файла
+    // определяем тип и размер файла по заголовкам
+    // как вариант, размер можно самостоятельно подсчитывать при подписке:
+    //  req.on('data', (chunk) => {
+    //    тут суммировать длины 'chunk' и при превышении допустимого размера делать исключение
+    //  })
     const contentType = req.headers['content-type'];
     const contentLength = Number(req.headers['content-length']);
     const imageType = contentType.match(/^image\/(.*)/)[1];
